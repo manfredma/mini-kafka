@@ -1,0 +1,8 @@
+/Users/maxingfang/IdeaProjects/github/mini-kafka/mini-kafka-common/src/main/java/com/github/minikafka/common/network/ByteBufferUtils.java
+/Users/maxingfang/IdeaProjects/github/mini-kafka/mini-kafka-common/src/main/java/com/github/minikafka/common/protocol/ApiKeys.java
+/Users/maxingfang/IdeaProjects/github/mini-kafka/mini-kafka-common/src/main/java/com/github/minikafka/common/protocol/Errors.java
+/Users/maxingfang/IdeaProjects/github/mini-kafka/mini-kafka-common/src/main/java/com/github/minikafka/common/protocol/RequestHeader.java
+/Users/maxingfang/IdeaProjects/github/mini-kafka/mini-kafka-common/src/main/java/com/github/minikafka/common/protocol/ResponseHeader.java
+/Users/maxingfang/IdeaProjects/github/mini-kafka/mini-kafka-common/src/main/java/com/github/minikafka/common/record/CompressionType.java
+/Users/maxingfang/IdeaProjects/github/mini-kafka/mini-kafka-common/src/main/java/com/github/minikafka/common/record/Record.java
+/Users/maxingfang/IdeaProjects/github/mini-kafka/mini-kafka-common/src/main/java/com/github/minikafka/common/record/RecordBatch.java

@@ -1,0 +1,4 @@
+/Users/maxingfang/IdeaProjects/github/mini-kafka/mini-kafka-common/src/test/java/com/github/minikafka/common/network/ByteBufferUtilsTest.java
+/Users/maxingfang/IdeaProjects/github/mini-kafka/mini-kafka-common/src/test/java/com/github/minikafka/common/protocol/RequestHeaderTest.java
+/Users/maxingfang/IdeaProjects/github/mini-kafka/mini-kafka-common/src/test/java/com/github/minikafka/common/protocol/ResponseHeaderTest.java
+/Users/maxingfang/IdeaProjects/github/mini-kafka/mini-kafka-common/src/test/java/com/github/minikafka/common/record/RecordBatchTest.java

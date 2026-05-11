@@ -1,0 +1,8 @@
+com/github/minikafka/common/record/CompressionType.class
+com/github/minikafka/common/protocol/RequestHeader.class
+com/github/minikafka/common/record/RecordBatch.class
+com/github/minikafka/common/network/ByteBufferUtils.class
+com/github/minikafka/common/protocol/ResponseHeader.class
+com/github/minikafka/common/protocol/ApiKeys.class
+com/github/minikafka/common/record/Record.class
+com/github/minikafka/common/protocol/Errors.class
