@@ -1,4 +1,0 @@
-com/github/minikafka/common/protocol/RequestHeaderTest.class
-com/github/minikafka/common/protocol/ResponseHeaderTest.class
-com/github/minikafka/common/network/ByteBufferUtilsTest.class
-com/github/minikafka/common/record/RecordBatchTest.class
