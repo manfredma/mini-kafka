@@ -1,0 +1,5 @@
+com/github/minikafka/server/integration/BrokerIntegrationTest.class
+com/github/minikafka/server/log/OffsetIndexTest.class
+com/github/minikafka/server/coordinator/GroupCoordinatorTest.class
+com/github/minikafka/server/log/LogTest.class
+com/github/minikafka/server/log/LogSegmentTest.class
