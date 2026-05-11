@@ -1,0 +1,3 @@
+com/github/minikafka/clients/producer/RecordAccumulatorTest.class
+com/github/minikafka/clients/integration/ProducerConsumerIntegrationTest.class
+com/github/minikafka/clients/network/MetadataTest.class
