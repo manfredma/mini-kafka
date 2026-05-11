@@ -1,3 +1,6 @@
+com/github/minikafka/clients/consumer/RangeAssignorTest.class
 com/github/minikafka/clients/producer/RecordAccumulatorTest.class
-com/github/minikafka/clients/integration/ProducerConsumerIntegrationTest.class
 com/github/minikafka/clients/network/MetadataTest.class
+com/github/minikafka/clients/consumer/RangeAssignorTest$TestableCoordinator.class
+com/github/minikafka/clients/consumer/RangeAssignorTest$FakeMetadata.class
+com/github/minikafka/clients/integration/ProducerConsumerIntegrationTest.class

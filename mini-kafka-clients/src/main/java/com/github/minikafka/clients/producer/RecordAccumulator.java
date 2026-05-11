@@ -61,7 +61,7 @@ public final class RecordAccumulator {
         return new ArrayList<>(ready);
     }
 
-    public boolean hasUnsentRecords() {
+    public synchronized boolean hasUnsentRecords() {
         for (ProducerBatch b : batches.values()) if (!b.isEmpty()) return true;
         for (Queue<ProducerBatch> q : readyBatches.values()) if (!q.isEmpty()) return true;
         return false;

@@ -124,12 +124,12 @@ public final class GroupCoordinator {
         log.info("Member {} left group {}", memberId, groupId);
     }
 
-    public void commitOffset(String groupId, String topic, int partition, long offset) {
+    public synchronized void commitOffset(String groupId, String topic, int partition, long offset) {
         GroupMetadata group = groups.get(groupId);
         if (group != null) group.commitOffset(topic, partition, offset);
     }
 
-    public long fetchOffset(String groupId, String topic, int partition) {
+    public synchronized long fetchOffset(String groupId, String topic, int partition) {
         GroupMetadata group = groups.get(groupId);
         return group == null ? -1L : group.fetchOffset(topic, partition);
     }

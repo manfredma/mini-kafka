@@ -38,6 +38,7 @@ public final class Processor implements Runnable {
     public void run() {
         while (running) {
             try {
+                // 注册新连接
                 SocketChannel newConn;
                 while ((newConn = newConnections.poll()) != null) {
                     newConn.configureBlocking(false);
@@ -96,6 +97,11 @@ public final class Processor implements Runnable {
         }
     }
 
+    /**
+     * 将属于本 Processor 的响应通过 OP_WRITE 发出；
+     * 不属于本 Processor 的响应放回队列一次后停止本轮处理，
+     * 避免多 Processor 场景下无限轮转。
+     */
     private void sendPendingResponses() throws IOException {
         RequestChannel.Response response;
         List<RequestChannel.Response> deferred = new ArrayList<>();
@@ -107,16 +113,13 @@ public final class Processor implements Runnable {
             SocketChannel channel = response.channel;
             SelectionKey key = channel.keyFor(selector);
             if (key != null && key.isValid()) {
+                // 只注册 OP_WRITE，实际写入由 handleWrite 完成，避免双写
                 key.attach(response.buffer);
                 key.interestOps(SelectionKey.OP_WRITE);
                 selector.wakeup();
-                channel.write(response.buffer);
-                if (!response.buffer.hasRemaining()) {
-                    key.interestOps(SelectionKey.OP_READ);
-                    key.attach(null);
-                }
             }
         }
+        // 将不属于本 Processor 的响应放回队列，让各自的 Processor 处理
         for (RequestChannel.Response r : deferred) {
             try { requestChannel.sendResponse(r); } catch (InterruptedException ignored) {}
         }

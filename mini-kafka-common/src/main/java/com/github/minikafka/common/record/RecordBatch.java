@@ -42,7 +42,10 @@ public final class RecordBatch {
 
     public long baseOffset() { return baseOffset; }
     public List<Record> records() { return records; }
-    public long lastOffset() { return baseOffset + records.size() - 1; }
+    public long lastOffset() {
+        if (records.isEmpty()) throw new IllegalStateException("RecordBatch has no records");
+        return baseOffset + records.size() - 1;
+    }
 
     public int sizeInBytes() {
         return 8 + 4 + BATCH_OVERHEAD + recordsSize();
@@ -62,7 +65,9 @@ public final class RecordBatch {
 
     public void writeTo(ByteBuffer buffer) {
         long firstTimestamp = records.isEmpty() ? 0L : records.get(0).timestamp();
-        long maxTimestamp = records.isEmpty() ? 0L : records.get(records.size() - 1).timestamp();
+        // maxTimestamp 取所有 record 中的最大值，不能假设按时间戳升序
+        long maxTimestamp = 0L;
+        for (Record r : records) if (r.timestamp() > maxTimestamp) maxTimestamp = r.timestamp();
         int lastOffsetDelta = records.isEmpty() ? 0 : records.size() - 1;
 
         buffer.putLong(baseOffset);

@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<testsuite xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="https://maven.apache.org/surefire/maven-surefire-plugin/xsd/surefire-test-report-3.0.xsd" version="3.0" name="com.github.minikafka.server.integration.BrokerIntegrationTest" time="1.858" tests="2" errors="0" skipped="0" failures="0">
+<testsuite xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="https://maven.apache.org/surefire/maven-surefire-plugin/xsd/surefire-test-report-3.0.xsd" version="3.0" name="com.github.minikafka.server.log.LogRestartTest" time="0.018" tests="3" errors="0" skipped="0" failures="0">
   <properties>
     <property name="gopherProxySet" value="false"/>
     <property name="awt.toolkit" value="sun.lwawt.macosx.LWCToolkit"/>
@@ -60,19 +60,7 @@
     <property name="sun.io.unicode.encoding" value="UnicodeBig"/>
     <property name="java.class.version" value="52.0"/>
   </properties>
-  <testcase name="testMetadata" classname="com.github.minikafka.server.integration.BrokerIntegrationTest" time="1.026">
-    <system-out><![CDATA[13:11:04.304 [main] INFO  c.g.minikafka.server.KafkaServer - Starting KafkaServer on port 19092
-13:11:04.322 [main] INFO  c.g.m.server.network.SocketServer - SocketServer started
-13:11:04.322 [kafka-acceptor] INFO  c.g.m.server.network.Acceptor - Acceptor listening on port 19092
-13:11:04.322 [main] INFO  c.g.minikafka.server.KafkaServer - KafkaServer started successfully
-13:11:04.639 [kafka-request-handler-963083487478208] INFO  c.g.minikafka.server.log.LogManager - Created new log for meta-test-0
-13:11:04.640 [kafka-request-handler-963083487478208] INFO  c.g.minikafka.server.log.LogManager - Created new log for meta-test-1
-13:11:04.640 [kafka-request-handler-963083487478208] INFO  c.g.m.s.controller.KafkaController - Created topic meta-test with 2 partitions
-]]></system-out>
-  </testcase>
-  <testcase name="testCreateTopicAndProduceAndFetch" classname="com.github.minikafka.server.integration.BrokerIntegrationTest" time="0.418">
-    <system-out><![CDATA[13:11:05.658 [kafka-request-handler-963084504608625] INFO  c.g.minikafka.server.log.LogManager - Created new log for integration-test-0
-13:11:05.659 [kafka-request-handler-963084504608625] INFO  c.g.m.s.controller.KafkaController - Created topic integration-test with 1 partitions
-]]></system-out>
-  </testcase>
+  <testcase name="testConcurrentAppendNoException" classname="com.github.minikafka.server.log.LogRestartTest" time="0.008"/>
+  <testcase name="testLogEndOffsetRestoredAfterRestart" classname="com.github.minikafka.server.log.LogRestartTest" time="0.006"/>
+  <testcase name="testReadAfterRestartReturnsCorrectData" classname="com.github.minikafka.server.log.LogRestartTest" time="0.003"/>
 </testsuite>

@@ -5,6 +5,7 @@ import com.github.minikafka.common.protocol.*;
 import com.github.minikafka.common.record.RecordBatch;
 import com.github.minikafka.server.controller.KafkaController;
 import com.github.minikafka.server.coordinator.GroupCoordinator;
+import com.github.minikafka.server.coordinator.GroupMetadata;
 import com.github.minikafka.server.log.Log;
 import com.github.minikafka.server.log.LogManager;
 import com.github.minikafka.server.network.RequestChannel;
@@ -113,7 +114,8 @@ public final class KafkaApis {
         buf.getInt(); buf.getInt(); buf.getInt(); // replicaId, maxWaitMs, minBytes
         int topicCount = buf.getInt();
 
-        ByteBuffer respBody = ByteBuffer.allocate(1024 * 1024);
+        // 动态扩容：初始 64KB，不足时翻倍
+        ByteBuffer respBody = ByteBuffer.allocate(64 * 1024);
         respBody.putInt(topicCount);
 
         for (int t = 0; t < topicCount; t++) {
@@ -135,10 +137,13 @@ public final class KafkaApis {
                     respBody.putInt(0);
                 } else {
                     ByteBuffer records = partLog.read(fetchOffset, maxBytes);
+                    int recordBytes = (records != null && records.hasRemaining()) ? records.remaining() : 0;
+                    // 确保 errorCode(2)+highWatermark(8)+recordSize(4)+data 都能写入
+                    respBody = ensureCapacity(respBody, 2 + 8 + 4 + recordBytes);
                     respBody.putShort(Errors.NONE.code);
                     respBody.putLong(partLog.logEndOffset());
-                    if (records != null && records.hasRemaining()) {
-                        respBody.putInt(records.remaining());
+                    if (recordBytes > 0) {
+                        respBody.putInt(recordBytes);
                         respBody.put(records);
                     } else {
                         respBody.putInt(0);
@@ -157,7 +162,8 @@ public final class KafkaApis {
         for (int i = 0; i < topicCount; i++) requestedTopics.add(ByteBufferUtils.readString(buf));
         if (requestedTopics.isEmpty()) requestedTopics.addAll(controller.context().allTopics().keySet());
 
-        ByteBuffer resp = ByteBuffer.allocate(4096);
+        // 动态 buffer：每个 topic 最多几百字节，1024/topic 足够
+        ByteBuffer resp = ByteBuffer.allocate(Math.max(4096, requestedTopics.size() * 1024));
         resp.putInt(1);
         resp.putInt(0);
         ByteBufferUtils.writeString(resp, "localhost");
@@ -289,8 +295,16 @@ public final class KafkaApis {
     // OFFSET_COMMIT: groupId(string) generationId(4) memberId(string) topicCount(4) [topic(string) partCount(4) [partition(4) offset(8)]]
     private ByteBuffer handleOffsetCommit(ByteBuffer buf) {
         String groupId = ByteBufferUtils.readString(buf);
-        buf.getInt();
-        ByteBufferUtils.readString(buf);
+        int generationId = buf.getInt();
+        String memberId = ByteBufferUtils.readString(buf);
+        // 校验 generationId：stale generation 拒绝提交，防止 zombie consumer 覆盖 offset
+        GroupMetadata group = groupCoordinator.getGroup(groupId);
+        if (group != null && group.generationId() != generationId) {
+            ByteBuffer errResp = ByteBuffer.allocate(4);
+            errResp.putInt(0);
+            errResp.flip();
+            return errResp;
+        }
         int topicCount = buf.getInt();
         for (int t = 0; t < topicCount; t++) {
             String topic = ByteBufferUtils.readString(buf);
@@ -328,6 +342,17 @@ public final class KafkaApis {
         }
         resp.flip();
         return resp;
+    }
+
+    /** 当 buf 剩余空间不足 needed 字节时，将容量翻倍直到足够 */
+    private static ByteBuffer ensureCapacity(ByteBuffer buf, int needed) {
+        if (buf.remaining() >= needed) return buf;
+        int newCapacity = buf.capacity();
+        while (newCapacity - buf.position() < needed) newCapacity *= 2;
+        ByteBuffer newBuf = ByteBuffer.allocate(newCapacity);
+        buf.flip();
+        newBuf.put(buf);
+        return newBuf;
     }
 
     private ByteBuffer buildErrorResponse(Errors error) {

@@ -113,6 +113,10 @@ public final class ConsumerCoordinator {
         log.info("SyncGroup complete, assigned: {}", subscriptionState.assignedPartitions());
     }
 
+    /**
+     * RangeAssignor：将每个 topic 的 partition 均匀分配给 members。
+     * 对齐 Kafka RangeAssignor：partitions < members 时，后面的 member 分配为空。
+     */
     private Map<String, byte[]> rangeAssign(List<String> members) {
         Map<String, byte[]> result = new HashMap<>();
         for (String m : members) result.put(m, new byte[0]);
@@ -121,11 +125,20 @@ public final class ConsumerCoordinator {
             int partitions = metadata.partitionCount(topic);
             if (partitions == 0) continue;
             int membersCount = members.size();
+            // RangeAssignor: numPartitionsPerConsumer = partitions / members
+            // 前 remainder 个 consumer 多拿一个 partition
+            int numPartitionsPerConsumer = partitions / membersCount;
+            int remainder = partitions % membersCount;
+            int start = 0;
             for (int i = 0; i < membersCount; i++) {
-                int start = (partitions / membersCount) * i;
-                int end = (i == membersCount - 1) ? partitions : start + partitions / membersCount;
-                byte[] existing = result.get(members.get(i));
-                result.put(members.get(i), encodeAssignment(existing, topic, start, end));
+                int extra = (i < remainder) ? 1 : 0;
+                int end = start + numPartitionsPerConsumer + extra;
+                if (start < end) {
+                    byte[] existing = result.get(members.get(i));
+                    result.put(members.get(i), encodeAssignment(existing, topic, start, end));
+                }
+                // start < end 为 false 时（partitions < members），该 member 分配空列表，不写 encodeAssignment
+                start = end;
             }
         }
         return result;
@@ -140,7 +153,8 @@ public final class ConsumerCoordinator {
         ByteBufferUtils.writeString(buf, topic);
         buf.putInt(count);
         for (int i = start; i < end; i++) buf.putInt(i);
-        return buf.array();
+        // 用 Arrays.copyOf 只取已写入部分，避免 buf.array() 含末尾未写入的 0 字节
+        return java.util.Arrays.copyOf(buf.array(), buf.position());
     }
 
     private void parseAssignment(byte[] assignment) {

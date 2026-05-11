@@ -6,6 +6,7 @@ import org.slf4j.LoggerFactory;
 import java.io.*;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
+import java.nio.file.StandardOpenOption;
 
 /**
  * 对应磁盘上一对 .log + .index 文件
@@ -31,9 +32,10 @@ public final class LogSegment implements Closeable {
         File logFile = new File(dir, filenamePrefixed(baseOffset) + ".log");
         File indexFile = new File(dir, filenamePrefixed(baseOffset) + ".index");
 
-        RandomAccessFile raf = new RandomAccessFile(logFile, "rw");
-        this.logChannel = raf.getChannel();
-        this.size = logFile.length();
+        // 用 FileChannel.open 避免 RandomAccessFile 句柄泄漏
+        this.logChannel = FileChannel.open(logFile.toPath(),
+            StandardOpenOption.CREATE, StandardOpenOption.READ, StandardOpenOption.WRITE);
+        this.size = this.logChannel.size();
         this.logChannel.position(this.size);
 
         this.offsetIndex = new OffsetIndex(indexFile, baseOffset, config.maxIndexSize);
@@ -60,17 +62,52 @@ public final class LogSegment implements Closeable {
         bytesSinceLastIndex += written;
     }
 
+    /**
+     * 从 startOffset 开始读取最多 maxLength 字节。
+     * 通过 OffsetIndex 定位起始物理位置，然后顺序扫描跳过 baseOffset < startOffset 的 batch，
+     * 只返回从 startOffset 开始的有效数据。
+     */
     public ByteBuffer read(long startOffset, int maxLength) throws IOException {
         int startPosition = offsetIndex.lookup(startOffset);
         long readableSize = size - startPosition;
         if (readableSize <= 0) return null;
 
+        // 读取候选区域
         int toRead = (int) Math.min(maxLength, readableSize);
-        ByteBuffer buf = ByteBuffer.allocate(toRead);
-        logChannel.read(buf, startPosition);
-        buf.flip();
-        return buf;
+        ByteBuffer raw = ByteBuffer.allocate(toRead);
+        logChannel.read(raw, startPosition);
+        raw.flip();
+
+        // 跳过 baseOffset < startOffset 的 batch（稀疏索引可能指向更早的位置）
+        while (raw.hasRemaining()) {
+            raw.mark();
+            if (raw.remaining() < 12) break; // 不足以读 baseOffset+batchLength
+            long batchBaseOffset = raw.getLong();
+            int batchLength = raw.getInt();
+            if (batchBaseOffset + batchLength < 0 || batchLength < 0) {
+                raw.reset();
+                break;
+            }
+            if (batchBaseOffset >= startOffset) {
+                // 找到正确起始点，reset 回 batch 开头并返回
+                raw.reset();
+                return raw.slice();
+            }
+            // 跳过这个 batch：batchLength 不含自身前面的 baseOffset(8)+batchLength(4)
+            int skipBytes = batchLength;
+            if (raw.remaining() < skipBytes) {
+                raw.reset();
+                break;
+            }
+            raw.position(raw.position() + skipBytes);
+        }
+
+        if (!raw.hasRemaining()) return null;
+        return raw.slice();
     }
+
+    /** 暴露给 Log.recoverLogEndOffset 使用，包级别可见 */
+    FileChannel logChannel() { return logChannel; }
 
     public boolean isFull() { return size >= config.segmentBytes; }
 

@@ -1,5 +1,7 @@
 /Users/maxingfang/IdeaProjects/github/mini-kafka/mini-kafka-server/src/test/java/com/github/minikafka/server/coordinator/GroupCoordinatorTest.java
 /Users/maxingfang/IdeaProjects/github/mini-kafka/mini-kafka-server/src/test/java/com/github/minikafka/server/integration/BrokerIntegrationTest.java
+/Users/maxingfang/IdeaProjects/github/mini-kafka/mini-kafka-server/src/test/java/com/github/minikafka/server/log/LogRestartTest.java
 /Users/maxingfang/IdeaProjects/github/mini-kafka/mini-kafka-server/src/test/java/com/github/minikafka/server/log/LogSegmentTest.java
 /Users/maxingfang/IdeaProjects/github/mini-kafka/mini-kafka-server/src/test/java/com/github/minikafka/server/log/LogTest.java
+/Users/maxingfang/IdeaProjects/github/mini-kafka/mini-kafka-server/src/test/java/com/github/minikafka/server/log/OffsetIndexRestartTest.java
 /Users/maxingfang/IdeaProjects/github/mini-kafka/mini-kafka-server/src/test/java/com/github/minikafka/server/log/OffsetIndexTest.java

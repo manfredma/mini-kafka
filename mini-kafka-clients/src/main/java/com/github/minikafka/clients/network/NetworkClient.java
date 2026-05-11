@@ -25,8 +25,8 @@ public final class NetworkClient implements Closeable {
     private final String clientId;
     private final AtomicInteger correlationIdCounter = new AtomicInteger(0);
 
-    private SocketChannel channel;
-    private boolean connected = false;
+    private volatile SocketChannel channel;
+    private volatile boolean connected = false;
 
     public NetworkClient(String bootstrapHost, int bootstrapPort,
                          String clientId, Metadata metadata) {

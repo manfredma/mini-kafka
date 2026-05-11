@@ -1,3 +1,4 @@
+/Users/maxingfang/IdeaProjects/github/mini-kafka/mini-kafka-clients/src/test/java/com/github/minikafka/clients/consumer/RangeAssignorTest.java
 /Users/maxingfang/IdeaProjects/github/mini-kafka/mini-kafka-clients/src/test/java/com/github/minikafka/clients/integration/ProducerConsumerIntegrationTest.java
 /Users/maxingfang/IdeaProjects/github/mini-kafka/mini-kafka-clients/src/test/java/com/github/minikafka/clients/network/MetadataTest.java
 /Users/maxingfang/IdeaProjects/github/mini-kafka/mini-kafka-clients/src/test/java/com/github/minikafka/clients/producer/RecordAccumulatorTest.java
