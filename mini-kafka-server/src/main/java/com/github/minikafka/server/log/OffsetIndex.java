@@ -8,8 +8,22 @@ import java.nio.MappedByteBuffer;
 import java.nio.channels.FileChannel;
 
 /**
- * 稀疏 offset 索引，每条 entry = (relativeOffset:4bytes, position:4bytes)
- * 对齐 Kafka OffsetIndex
+ * 稀疏 offset 索引，每条 entry = (relativeOffset:4bytes, position:4bytes)，共 8 字节。
+ * <p>
+ * 对应 Kafka 原版 {@code kafka.log.OffsetIndex}。
+ * 索引文件通过 {@link MappedByteBuffer} 内存映射，追加和查找均直接操作 mmap，
+ * 避免用户态/内核态拷贝。
+ * </p>
+ * <p>
+ * 设计决策：
+ * <ul>
+ *   <li>relativeOffset 存储相对于 baseOffset 的差值（4 字节），限制单 Segment 最大 offset 跨度
+ *       不超过 {@link Integer#MAX_VALUE}（约 21 亿条消息）。</li>
+ *   <li>索引为稀疏索引，不是每条消息都有对应条目，由 {@code indexIntervalBytes} 控制密度。</li>
+ *   <li>构造时自动区分新文件（entries=0）和重启恢复（调用 {@link #recoverEntries()}）。</li>
+ *   <li>非线程安全，外部调用方（LogSegment）负责同步。</li>
+ * </ul>
+ * </p>
  */
 public final class OffsetIndex implements Closeable {
 
@@ -20,6 +34,18 @@ public final class OffsetIndex implements Closeable {
     private final int maxEntries;
     private int entries;
 
+    /**
+     * 打开或创建索引文件，并完成内存映射初始化。
+     * <p>
+     * 若文件已存在且有内容（重启场景），则调用 {@link #recoverEntries()} 恢复 entries 计数；
+     * 若文件不存在或为空（新建场景），entries 从 0 开始。
+     * </p>
+     *
+     * @param file         索引文件路径（.index 后缀），不存在时自动创建
+     * @param baseOffset   所属 LogSegment 的起始 offset，用于计算 relativeOffset
+     * @param maxIndexSize 索引文件的最大字节数，同时决定 mmap 映射大小和最大条目数
+     * @throws IOException 文件 IO 或内存映射失败时抛出
+     */
     public OffsetIndex(File file, long baseOffset, int maxIndexSize) throws IOException {
         this.baseOffset = baseOffset;
         this.maxEntries = maxIndexSize / ENTRY_SIZE;
@@ -65,6 +91,19 @@ public final class OffsetIndex implements Closeable {
         return count;
     }
 
+    /**
+     * 向索引末尾追加一条稀疏索引条目。
+     * <p>
+     * 将 offset 转换为相对于 baseOffset 的 relativeOffset（4 字节整数），
+     * 与 filePosition 一起写入 mmap。
+     * </p>
+     *
+     * @param offset   要索引的消息批次的绝对 offset（即该 RecordBatch 的 baseOffset）
+     * @param position 该批次在 .log 文件中的起始字节位置（文件绝对偏移量）
+     * @throws IllegalStateException    索引已满（entries >= maxEntries）时抛出
+     * @throws IllegalArgumentException offset - baseOffset 超过 {@link Integer#MAX_VALUE} 时抛出，
+     *                                  说明单 Segment 内 offset 跨度过大
+     */
     public void append(long offset, int position) {
         if (entries >= maxEntries) {
             throw new IllegalStateException("Index is full: " + entries + " entries");
@@ -80,6 +119,18 @@ public final class OffsetIndex implements Closeable {
         entries++;
     }
 
+    /**
+     * 二分查找，返回 relativeOffset &lt;= (targetOffset - baseOffset) 的最大索引条目对应的
+     * 文件物理位置（filePosition）。
+     * <p>
+     * 由于是稀疏索引，返回的位置可能指向早于 targetOffset 的某个批次起始处，
+     * 调用方（LogSegment.read）需继续顺序扫描跳过更早的批次。
+     * </p>
+     *
+     * @param targetOffset 目标 offset（绝对值）
+     * @return 最接近且不超过 targetOffset 的索引条目的文件位置；
+     *         若索引为空（entries == 0），返回 0（从文件头开始读取）
+     */
     public int lookup(long targetOffset) {
         if (entries == 0) return 0;
         int relTarget = (int) (targetOffset - baseOffset);
@@ -100,8 +151,14 @@ public final class OffsetIndex implements Closeable {
 
     public int entries() { return entries; }
 
+    /**
+     * 将 mmap 中的修改强制刷盘。
+     */
     public void flush() { mmap.force(); }
 
+    /**
+     * 刷盘并释放资源。等价于 {@link #flush()}，不关闭 mmap（由 JVM GC 回收）。
+     */
     @Override
     public void close() { flush(); }
 }

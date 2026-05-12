@@ -9,8 +9,24 @@ import java.util.*;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
 /**
- * 管理一批 SocketChannel，读取完整请求帧放入 RequestChannel
- * 对齐 Kafka kafka.network.Processor
+ * 管理一批 SocketChannel，通过 NIO Selector 事件驱动地读取完整请求帧并写回响应。
+ * <p>
+ * 对应 Kafka 原版 {@code kafka.network.Processor}。
+ * 每个 Processor 运行在独立线程中，拥有自己的 NIO {@link Selector}，
+ * 负责管理分配给它的所有客户端连接的读写事件。
+ * </p>
+ * <p>
+ * 关键设计决策：
+ * <ul>
+ *   <li>新连接通过 {@link ConcurrentLinkedQueue} 传递（{@link #accept(SocketChannel)}），
+ *       避免 Acceptor 线程与 Processor 线程直接竞争 Selector。</li>
+ *   <li>写响应采用两阶段设计：{@link #sendPendingResponses()} 只向 Selector 注册 OP_WRITE
+ *       并挂载 buffer，实际写入由 {@link #handleWrite(SelectionKey)} 在 OP_WRITE 事件触发时完成，
+ *       避免在 select 循环外直接写 Channel（可能阻塞）。</li>
+ *   <li>不属于本 Processor 的响应在 {@link #sendPendingResponses()} 中放回队列，
+ *       由对应 Processor 处理，避免跨 Selector 写 Channel。</li>
+ * </ul>
+ * </p>
  */
 public final class Processor implements Runnable {
 
@@ -23,12 +39,28 @@ public final class Processor implements Runnable {
     private final Map<SocketChannel, NetworkReceive> inflightReads = new HashMap<>();
     private volatile boolean running = true;
 
+    /**
+     * 构造 Processor，打开专属 NIO Selector。
+     *
+     * @param id             Processor 编号（0 到 numNetworkThreads-1），用于响应路由
+     * @param requestChannel 请求/响应通道，与 KafkaRequestHandler 共享
+     * @throws IOException Selector 打开失败时抛出
+     */
     public Processor(int id, RequestChannel requestChannel) throws IOException {
         this.id = id;
         this.requestChannel = requestChannel;
         this.selector = Selector.open();
     }
 
+    /**
+     * 由 {@link Acceptor} 线程调用，将新接受的连接交给本 Processor 管理。
+     * <p>
+     * 通过 {@link ConcurrentLinkedQueue} 实现线程安全的连接传递，
+     * 调用后立即唤醒 Selector，确保新连接在下一次 select 循环中被注册。
+     * </p>
+     *
+     * @param channel 已 accept 但尚未配置为非阻塞的 SocketChannel
+     */
     public void accept(SocketChannel channel) {
         newConnections.add(channel);
         selector.wakeup();
@@ -66,6 +98,19 @@ public final class Processor implements Runnable {
         }
     }
 
+    /**
+     * 处理 OP_READ 事件：从 Channel 读取数据，帧完整后放入 RequestChannel。
+     * <p>
+     * 使用 {@link NetworkReceive} 维护每个连接的读取状态（支持分片读取）。
+     * 帧读取完成后，duplicate payload（避免共享 position）放入 requestChannel，
+     * 并为该连接创建新的 NetworkReceive 实例以接收下一帧。
+     * 若 Channel 发生 IO 异常（如客户端断开），取消 SelectionKey 并关闭 Channel。
+     * </p>
+     *
+     * @param key 触发 OP_READ 的 SelectionKey
+     * @throws IOException          Channel 操作失败时抛出（已在方法内部捕获并处理）
+     * @throws InterruptedException 放入 requestChannel 时线程被中断时抛出
+     */
     private void handleRead(SelectionKey key) throws IOException, InterruptedException {
         SocketChannel channel = (SocketChannel) key.channel();
         NetworkReceive receive = inflightReads.get(channel);
@@ -85,6 +130,17 @@ public final class Processor implements Runnable {
         }
     }
 
+    /**
+     * 处理 OP_WRITE 事件：将挂载在 SelectionKey attachment 上的响应 buffer 写入 Channel。
+     * <p>
+     * 写完后（buffer.hasRemaining() == false）将 interestOps 切回 OP_READ，
+     * 并清除 attachment，等待下一次请求。
+     * 若 buffer 尚未写完（Socket 发送缓冲区满），保持 OP_WRITE 注册，等待下次事件继续写。
+     * </p>
+     *
+     * @param key 触发 OP_WRITE 的 SelectionKey，attachment 为待写入的响应 ByteBuffer
+     * @throws IOException Channel 写入失败时抛出
+     */
     private void handleWrite(SelectionKey key) throws IOException {
         SocketChannel channel = (SocketChannel) key.channel();
         ByteBuffer buf = (ByteBuffer) key.attachment();
@@ -125,6 +181,9 @@ public final class Processor implements Runnable {
         }
     }
 
+    /**
+     * 通知 Processor 停止运行，唤醒阻塞中的 Selector 以使 run 循环尽快退出。
+     */
     public void shutdown() {
         running = false;
         selector.wakeup();
